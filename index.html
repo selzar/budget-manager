@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Budget Manager</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0f172a;font-family:system-ui,sans-serif;color:#e2e8f0;min-height:100vh}
+  input,select{outline:none}
+  button{font-family:inherit}
+  ::-webkit-scrollbar{width:6px}
+  ::-webkit-scrollbar-track{background:#1e293b}
+  ::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useMemo, useCallback } = React;
+
+const STORAGE_KEY  = "biweekly_budget_v4";
+const SUPABASE_URL = "https://wkcpggocwzbivkhxwmjr.supabase.co";
+const SUPABASE_KEY = "sb_publishable_bnEGoef1V4qQauyG4DFe0w_5FhH6Be_";
+const ROW_ID       = "household_budget";
+
+async function loadFromSupabase() {
+  try {
+    const res = await fetch(SUPABASE_URL+"/rest/v1/budget_data?id=eq."+ROW_ID+"&select=data",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}});
+    const rows = await res.json();
+    console.log("LOAD:",res.status, JSON.stringify(rows).slice(0,200));
+    if (rows && rows.length>0) return rows[0].data;
+    return null;
+  } catch(e) { console.error("LOAD error:",e); return null; }
+}
+
+async function saveToSupabase(payload) {
+  try {
+    const res = await fetch(SUPABASE_URL+"/rest/v1/budget_data",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({id:ROW_ID,data:payload,updated_at:new Date().toISOString()})});
+    const text = await res.text();
+    console.log("SAVE:",res.status, text.slice(0,200));
+    return res.ok;
+  } catch(e) { console.error("SAVE error:",e); return false; }
+}
+
+const DEFAULT_BILLS = [
+  {id:"bill-1",  name:"Mortgage",                     amount:677.22, due:1,          recurring:"monthly"},
+  {id:"bill-2",  name:"Lot Rent",                     amount:495,    due:1,          recurring:"monthly"},
+  {id:"bill-3",  name:"Homeowners Insurance",          amount:250,    due:26,         recurring:"monthly"},
+  {id:"bill-4",  name:"LMUD",                         amount:60,     due:10,         recurring:"monthly"},
+  {id:"bill-5",  name:"Spectrum",                     amount:122,    due:22,         recurring:"monthly"},
+  {id:"bill-6",  name:"Entergy",                      amount:310,    due:1,          recurring:"monthly"},
+  {id:"bill-7",  name:"USAA",                         amount:320.45, due:4,          recurring:"monthly"},
+  {id:"bill-8",  name:"Verizon",                      amount:302.85, due:16,         recurring:"monthly"},
+  {id:"bill-9",  name:"Kia",                          amount:667,    due:15,         recurring:"monthly"},
+  {id:"bill-10", name:"Groceries",                    amount:300,    due:"BIWEEKLY", recurring:"biweekly"},
+  {id:"bill-11", name:"Wet Dog Food",                 amount:20,     due:"BIWEEKLY", recurring:"biweekly"},
+  {id:"bill-12", name:"Dry Dog Food",                 amount:40,     due:"BIWEEKLY", recurring:"biweekly"},
+  {id:"bill-13", name:"Dry Cat Food",                 amount:40,     due:"BIWEEKLY", recurring:"biweekly"},
+  {id:"bill-14", name:"Wet Cat Food",                 amount:20,     due:"BIWEEKLY", recurring:"biweekly"},
+  {id:"bill-15", name:"Cat Litter",                   amount:65.22,  due:"BIWEEKLY", recurring:"biweekly"},
+  {id:"bill-16", name:"Gas",                          amount:50,     due:"BIWEEKLY", recurring:"biweekly"},
+  {id:"bill-17", name:"Scott's Crunch Gym",           amount:40.96,  due:29,         recurring:"monthly"},
+  {id:"bill-18", name:"Meagan's Crunch Gym",          amount:38.96,  due:1,          recurring:"monthly"},
+  {id:"bill-19", name:"Toiletries",                   amount:115,    due:"BIWEEKLY", recurring:"biweekly"},
+  {id:"bill-20", name:"NFCU CC",                      amount:160,    due:18,         recurring:"monthly"},
+  {id:"bill-21", name:"NFCU Rw CC",                   amount:113.8,  due:16,         recurring:"monthly"},
+  {id:"bill-22", name:"Meagan's Capital One QS",      amount:40,     due:5,          recurring:"monthly"},
+  {id:"bill-23", name:"Meagan's Capital One QS 1047", amount:25,     due:5,          recurring:"monthly"},
+  {id:"bill-24", name:"Meagan's Capital One Platinum",amount:61,     due:28,         recurring:"monthly"},
+  {id:"bill-25", name:"Scott's Capital One",          amount:80,     due:12,         recurring:"monthly"},
+  {id:"bill-26", name:"Scott's USAA CC 9197",         amount:30,     due:16,         recurring:"monthly"},
+  {id:"bill-27", name:"Meagan's USAA CC",             amount:30,     due:27,         recurring:"monthly"},
+  {id:"bill-28", name:"Meagan's USAA CC 5646",        amount:15,     due:16,         recurring:"monthly"},
+  {id:"bill-29", name:"Scott's Torrid",               amount:40,     due:3,          recurring:"monthly"},
+  {id:"bill-30", name:"Meagan's Torrid",              amount:40,     due:21,         recurring:"monthly"},
+  {id:"bill-31", name:"Care Credit",                  amount:30,     due:25,         recurring:"monthly"},
+  {id:"bill-32", name:"Scott's Affirm 2",             amount:33.45,  due:28,         recurring:"monthly"},
+  {id:"bill-33", name:"CFNA",                         amount:57,     due:13,         recurring:"monthly"},
+  {id:"bill-34", name:"Meagan's Affirm",              amount:185.45, due:2,          recurring:"monthly"},
+  {id:"bill-35", name:"IRS",                          amount:30,     due:15,         recurring:"monthly"},
+  {id:"bill-36", name:"Aidvantage",                   amount:51,     due:21,         recurring:"monthly"},
+  {id:"bill-37", name:"Ring",                         amount:11,     due:21,         recurring:"monthly"},
+  {id:"bill-38", name:"Google One Scott",             amount:9.99,   due:19,         recurring:"monthly"},
+  {id:"bill-39", name:"Google One Meagan",            amount:1.99,   due:7,          recurring:"monthly"},
+  {id:"bill-40", name:"TP-Link Tapo",                 amount:11.99,  due:13,         recurring:"monthly"},
+  {id:"bill-41", name:"Wyze",                         amount:12.99,  due:8,          recurring:"monthly"},
+  {id:"bill-42", name:"MacroFactor Scott",            amount:11.99,  due:3,          recurring:"monthly"},
+  {id:"bill-43", name:"MacroFactor Meagan",           amount:11.99,  due:20,         recurring:"monthly"},
+  {id:"bill-44", name:"Finch Scott",                  amount:10.59,  due:18,         recurring:"monthly"},
+  {id:"bill-45", name:"Finch Meagan",                 amount:10.59,  due:22,         recurring:"monthly"},
+  {id:"bill-46", name:"Google/Youtube",               amount:24.89,  due:2,          recurring:"monthly"},
+  {id:"bill-47", name:"Netflix",                      amount:27.05,  due:24,         recurring:"monthly"},
+  {id:"bill-48", name:"Hulu",                         amount:6.5,    due:23,         recurring:"monthly"},
+  {id:"bill-49", name:"Private Hulu",                 amount:20.56,  due:15,         recurring:"monthly"},
+  {id:"bill-50", name:"Amazon Prime",                 amount:16.23,  due:3,          recurring:"monthly"},
+  {id:"bill-51", name:"Amazon Prime Video",           amount:4,      due:27,         recurring:"monthly"},
+  {id:"bill-52", name:"Peacock",                      amount:18.05,  due:3,          recurring:"monthly"},
+  {id:"bill-53", name:"Paramount Plus",               amount:14.06,  due:1,          recurring:"monthly"},
+  {id:"bill-54", name:"Angel Studios",                amount:17.31,  due:14,         recurring:"monthly"},
+  {id:"bill-55", name:"Meagan's Spotify",             amount:13.8,   due:30,         recurring:"monthly"},
+  {id:"bill-56", name:"Scott's Spotify",              amount:13.8,   due:29,         recurring:"monthly"},
+  {id:"bill-57", name:"Audible",                      amount:15.88,  due:14,         recurring:"monthly"},
+  {id:"bill-58", name:"Kindle Unlimited",             amount:12,     due:22,         recurring:"monthly"},
+  {id:"bill-59", name:"Meagan's Patreon",             amount:5,      due:28,         recurring:"monthly"},
+  {id:"bill-60", name:"Runescape",                    amount:14.86,  due:21,         recurring:"monthly"},
+  {id:"bill-61", name:"ChatGPT",                      amount:22,     due:27,         recurring:"monthly"},
+  {id:"bill-62", name:"Walmart Plus",                 amount:14.02,  due:11,         recurring:"monthly"},
+];
+
+const BILL_CATEGORIES = {
+  "Mortgage":"Housing","Lot Rent":"Housing","Homeowners Insurance":"Housing",
+  "LMUD":"Utilities","Spectrum":"Utilities","Entergy":"Utilities","Verizon":"Utilities","Ring":"Utilities","TP-Link Tapo":"Utilities","Wyze":"Utilities",
+  "USAA":"Insurance & Auto","Kia":"Insurance & Auto",
+  "Groceries":"Food & Household","Wet Dog Food":"Food & Household","Dry Dog Food":"Food & Household","Dry Cat Food":"Food & Household","Wet Cat Food":"Food & Household","Cat Litter":"Food & Household","Gas":"Food & Household","Toiletries":"Food & Household","Walmart Plus":"Food & Household",
+  "NFCU CC":"Debt & Credit","NFCU Rw CC":"Debt & Credit","Meagan's Capital One QS":"Debt & Credit","Meagan's Capital One QS 1047":"Debt & Credit","Meagan's Capital One Platinum":"Debt & Credit","Scott's Capital One":"Debt & Credit","Scott's USAA CC 9197":"Debt & Credit","Meagan's USAA CC":"Debt & Credit","Meagan's USAA CC 5646":"Debt & Credit","Scott's Torrid":"Debt & Credit","Meagan's Torrid":"Debt & Credit","Care Credit":"Debt & Credit","Scott's Affirm 2":"Debt & Credit","CFNA":"Debt & Credit","Meagan's Affirm":"Debt & Credit","Meagan's Affirm 2":"Debt & Credit","IRS":"Debt & Credit","Aidvantage":"Debt & Credit",
+  "Scott's Spotify":"Subscriptions & Entertainment","Meagan's Spotify":"Subscriptions & Entertainment","Netflix":"Subscriptions & Entertainment","Hulu":"Subscriptions & Entertainment","Private Hulu":"Subscriptions & Entertainment","Amazon Prime":"Subscriptions & Entertainment","Amazon Prime Video":"Subscriptions & Entertainment","Peacock":"Subscriptions & Entertainment","Paramount Plus":"Subscriptions & Entertainment","Angel Studios":"Subscriptions & Entertainment","Audible":"Subscriptions & Entertainment","Kindle Unlimited":"Subscriptions & Entertainment","Meagan's Patreon":"Subscriptions & Entertainment","Runescape":"Subscriptions & Entertainment","Google/Youtube":"Subscriptions & Entertainment","ChatGPT":"Subscriptions & Entertainment","Google One Scott":"Subscriptions & Entertainment","Google One Meagan":"Subscriptions & Entertainment",
+  "MacroFactor Scott":"Health & Fitness","MacroFactor Meagan":"Health & Fitness","Finch Scott":"Health & Fitness","Finch Meagan":"Health & Fitness","Scott's Crunch Gym":"Health & Fitness","Meagan's Crunch Gym":"Health & Fitness",
+};
+
+const CAT_COLORS = {
+  "Housing":"#3b82f6","Utilities":"#8b5cf6","Insurance & Auto":"#f59e0b",
+  "Food & Household":"#10b981","Debt & Credit":"#ef4444",
+  "Subscriptions & Entertainment":"#ec4899","Health & Fitness":"#06b6d4","Other":"#64748b",
+};
+
+const COLORS = ["#3b82f6","#8b5cf6","#ec4899","#f59e0b","#10b981","#ef4444"];
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+const fmt  = d => d ? new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "";
+const fmtS = d => d ? new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
+const addDays  = (ds,n) => { const d=new Date(ds+"T00:00:00"); d.setDate(d.getDate()+n); return d.toISOString().split("T")[0]; };
+const genDates = (start,count=6) => Array.from({length:count},(_,i)=>addDays(start,i*14));
+const paidKey  = (id,due)    => "paid__"+id+"__"+due;
+const skipKey  = (id,due,pc) => "skip__"+id+"__"+due+"__"+pc;
+const bamKey   = (id,due,pc) => "billamt__"+id+"__"+due+"__"+pc;
+const getNow   = () => { const d=new Date(); return {year:d.getFullYear(),month:d.getMonth(),day:d.getDate(),str:d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}; };
+const monthKey = () => { const n=getNow(); return n.year+"-"+n.month; };
+const uniq     = arr => [...new Map(arr.map(b=>[b.id+b.dueDate,b])).values()];
+
+const S = {
+  inp:{display:"block",width:"100%",marginTop:4,padding:"8px 12px",background:"#0f172a",border:"1px solid #334155",borderRadius:8,color:"#e2e8f0",fontSize:14,boxSizing:"border-box"},
+  lbl:{fontSize:12,color:"#94a3b8"},
+  btn:{padding:"9px 18px",background:"linear-gradient(135deg,#1e40af,#7c3aed)",border:"none",borderRadius:8,color:"#fff",fontWeight:700,cursor:"pointer",fontSize:13},
+  sec:{padding:"9px 18px",background:"#334155",border:"none",borderRadius:8,color:"#e2e8f0",fontWeight:600,cursor:"pointer",fontSize:13},
+};
+
+function buildPaydates(sources,overrides) {
+  const out=[];
+  sources.forEach(src=>{
+    if (!src.nextPayDate||!src.amount) return;
+    genDates(src.nextPayDate).forEach(d=>{
+      const k=src.id+"__"+d, ov=overrides[k];
+      out.push({date:d,sourceId:src.id,amount:ov!==undefined?ov:parseFloat(src.amount),baseAmount:parseFloat(src.amount),isOverridden:ov!==undefined,sourceName:src.name,color:src.color});
+    });
+  });
+  return out.sort((a,b)=>a.date.localeCompare(b.date)||a.sourceName.localeCompare(b.sourceName));
+}
+
+function buildAssigned(paydates,bills) {
+  const map={};
+  paydates.forEach(p=>{map[p.date+"_"+p.sourceId]=[];});
+  bills.forEach(bill=>{
+    if (bill.recurring==="biweekly") {
+      paydates.forEach(p=>map[p.date+"_"+p.sourceId].push({...bill,dueDate:p.date}));
+    } else {
+      if (!paydates.length) return;
+      const start=new Date(paydates[0].date+"T00:00:00");
+      const endD=new Date(paydates[paydates.length-1].date+"T00:00:00"); endD.setDate(endD.getDate()+13);
+      let cur=new Date(start); cur.setDate(1);
+      while (cur<=endD) {
+        const yr=cur.getFullYear(),mo=cur.getMonth(),maxDay=new Date(yr,mo+1,0).getDate();
+        const dueD=new Date(yr,mo,Math.min(bill.due,maxDay));
+        if (dueD>=start&&dueD<=endD) {
+          const ds=dueD.toISOString().split("T")[0];
+          let best=null;
+          paydates.forEach(p=>{if(p.date<=ds&&(!best||p.date>best.date)) best=p;});
+          if (best) map[best.date+"_"+best.sourceId].push({...bill,dueDate:ds});
+        }
+        cur.setMonth(cur.getMonth()+1);
+      }
+    }
+  });
+  return map;
+}
+
+function buildCombined(paydates) {
+  const byDate={};
+  paydates.forEach(p=>{
+    if (!byDate[p.date]) byDate[p.date]={date:p.date,sources:[],totalIncome:0};
+    byDate[p.date].sources.push(p);
+    byDate[p.date].totalIncome+=p.amount;
+  });
+  return Object.values(byDate).sort((a,b)=>a.date.localeCompare(b.date));
+}
+
+function applyLoaded(d,setters) {
+  const {setSources,setBillsState,setPaid,setBillAmtOvr,setOverrides}=setters;
+  const tm=monthKey();
+  if (d.lastReset!==tm) {
+    const c={};
+    Object.keys(d.paid||{}).forEach(k=>{if(!k.startsWith("paid__")) c[k]=d.paid[k];});
+    d={...d,paid:c,billAmtOverrides:{},lastReset:tm};
+  }
+  if (d.sources)                setSources(d.sources);
+  if (d.bills&&d.bills.length>0) setBillsState(d.bills);
+  if (d.paid)                   setPaid(d.paid);
+  if (d.billAmtOverrides)       setBillAmtOvr(d.billAmtOverrides);
+  if (d.overrides)              setOverrides(d.overrides);
+}
+
+function StatCard({label,value,color,icon}) {
+  return (
+    <div style={{background:"#1e293b",borderRadius:12,padding:16,border:"1px solid #334155"}}>
+      <div style={{fontSize:22,marginBottom:4}}>{icon}</div>
+      <div style={{fontSize:20,fontWeight:800,color}}>{value}</div>
+      <div style={{fontSize:12,color:"#64748b",marginTop:2}}>{label}</div>
+    </div>
+  );
+}
+
+function SyncBadge({status}) {
+  const cfg={idle:{color:"#475569",text:"Synced"},syncing:{color:"#f59e0b",text:"Syncing…"},ok:{color:"#22c55e",text:"Saved"},error:{color:"#ef4444",text:"Sync failed"}}[status]||{color:"#475569",text:""};
+  return <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:cfg.color}}><div style={{width:7,height:7,borderRadius:"50%",background:cfg.color}}/>{cfg.text}</div>;
+}
+
+function DueToday({bills,combined,assigned,paid,isPaid,getBillAmt,todayStr}) {
+  const list=[]; const seen=new Set();
+  combined.forEach(cd=>{
+    uniq(cd.sources.flatMap(p=>assigned[p.date+"_"+p.sourceId]||[])).forEach(b=>{
+      if (b.dueDate===todayStr&&!seen.has(b.id)) { seen.add(b.id); if (!paid[skipKey(b.id,b.dueDate,cd.date)]) list.push({...b,pcDate:cd.date}); }
+    });
+  });
+  if (combined.length===0) { const day=parseInt(todayStr.split("-")[2],10); bills.forEach(b=>{if(b.recurring==="monthly"&&b.due===day) list.push({...b,dueDate:todayStr,pcDate:null});}); }
+  list.sort((a,b)=>a.name.localeCompare(b.name));
+  const total=list.reduce((s,b)=>s+(b.pcDate?getBillAmt(b,b.dueDate,b.pcDate):b.amount),0);
+  const paidCt=list.filter(b=>isPaid(b.id,b.dueDate)).length;
+  return (
+    <div style={{background:"#1e293b",borderRadius:12,padding:16,marginBottom:16,border:"1px solid #334155"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18}}>📆</span><h4 style={{margin:0,fontSize:14,fontWeight:700,color:"#e2e8f0"}}>Due Today</h4><span style={{fontSize:12,color:"#64748b"}}>{fmtS(todayStr)}</span></div>
+        {list.length>0&&<span style={{fontSize:12,color:"#64748b"}}>{paidCt}/{list.length} paid · <b style={{color:"#f59e0b"}}>${total.toFixed(2)}</b></span>}
+      </div>
+      {list.length===0?<p style={{margin:0,fontSize:13,color:"#475569"}}>No bills due today 🎉</p>
+        :list.map(b=>{ const pd=isPaid(b.id,b.dueDate),amt=b.pcDate?getBillAmt(b,b.dueDate,b.pcDate):b.amount; return (
+          <div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",marginBottom:6,borderRadius:8,background:pd?"#0f2a1a":"#0f172a",border:"1px solid "+(pd?"#22c55e33":"#1e293b")}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{width:18,height:18,borderRadius:4,border:"2px solid "+(pd?"#22c55e":"#475569"),background:pd?"#22c55e":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{pd&&<span style={{color:"#fff",fontSize:11,lineHeight:1}}>✓</span>}</div>
+              <span style={{fontSize:13,fontWeight:600,color:pd?"#86efac":"#e2e8f0",textDecoration:pd?"line-through":"none"}}>{b.name}</span>
+            </div>
+            <span style={{fontSize:13,fontWeight:700,color:pd?"#86efac":"#ef4444"}}>${amt.toFixed(2)}</span>
+          </div>
+        );})
+      }
+    </div>
+  );
+}
+
+function Charts({bills,totalMonthlyIncome,totalMonthlyBills}) {
+  const left=totalMonthlyIncome-totalMonthlyBills;
+  const billsPct=totalMonthlyIncome>0?Math.min(100,(totalMonthlyBills/totalMonthlyIncome)*100):0;
+  const leftPct=totalMonthlyIncome>0?Math.max(0,(left/totalMonthlyIncome)*100):0;
+  const catTotals={};
+  bills.forEach(b=>{ const cat=BILL_CATEGORIES[b.name]||"Other"; catTotals[cat]=(catTotals[cat]||0)+(b.recurring==="biweekly"?b.amount*2:b.amount); });
+  const pieData=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+  const pieTotal=pieData.reduce((s,[,v])=>s+v,0);
+  const cx=110,cy=110,r=90; let ang=-Math.PI/2;
+  const slices=pieData.map(([cat,val])=>{ const sw=(val/pieTotal)*2*Math.PI,x1=cx+r*Math.cos(ang),y1=cy+r*Math.sin(ang); ang+=sw; return {cat,val,path:"M"+cx+","+cy+" L"+x1+","+y1+" A"+r+","+r+" 0 "+(sw>Math.PI?1:0)+",1 "+(cx+r*Math.cos(ang))+","+(cy+r*Math.sin(ang))+" Z"}; });
+  const bars=[{label:"Income",val:totalMonthlyIncome,pct:100,color:"#22c55e"},{label:"Bills",val:totalMonthlyBills,pct:billsPct,color:"#ef4444"},{label:"Left Over",val:left,pct:leftPct,color:"#3b82f6"}];
+  return (
+    <div>
+      <div style={{background:"#1e293b",borderRadius:12,padding:20,marginBottom:16,border:"1px solid #334155"}}>
+        <h4 style={{margin:"0 0 16px",fontSize:14,color:"#94a3b8",textTransform:"uppercase",letterSpacing:1,fontWeight:600}}>Monthly Income vs Expenses</h4>
+        {bars.map(row=>(
+          <div key={row.label} style={{marginBottom:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{color:"#94a3b8"}}>{row.label}</span><span style={{fontWeight:700,color:row.color}}>${row.val.toFixed(2)}</span></div>
+            <div style={{background:"#0f172a",borderRadius:6,height:10,overflow:"hidden"}}><div style={{height:"100%",width:row.pct+"%",background:row.color,borderRadius:6}}/></div>
+          </div>
+        ))}
+        <div style={{marginTop:12,padding:"10px 14px",background:"#0f172a",borderRadius:8,display:"flex",justifyContent:"space-between",fontSize:12,color:"#64748b",flexWrap:"wrap",gap:6}}>
+          <span>Bills are <b style={{color:billsPct>90?"#ef4444":billsPct>75?"#f59e0b":"#22c55e"}}>{billsPct.toFixed(1)}%</b> of income</span>
+          <span>Savings rate: <b style={{color:"#3b82f6"}}>{leftPct.toFixed(1)}%</b></span>
+        </div>
+      </div>
+      <div style={{background:"#1e293b",borderRadius:12,padding:20,marginBottom:16,border:"1px solid #334155"}}>
+        <h4 style={{margin:"0 0 16px",fontSize:14,color:"#94a3b8",textTransform:"uppercase",letterSpacing:1,fontWeight:600}}>Monthly Spending by Category</h4>
+        <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-start"}}>
+          <svg viewBox="0 0 220 220" style={{width:180,height:180,flexShrink:0}}>
+            {slices.map(s=><path key={s.cat} d={s.path} fill={CAT_COLORS[s.cat]||CAT_COLORS["Other"]} stroke="#1e293b" strokeWidth="2"/>)}
+            <circle cx={cx} cy={cy} r={44} fill="#1e293b"/>
+            <text x={cx} y={cy-8} textAnchor="middle" fill="#94a3b8" fontSize="11">Total</text>
+            <text x={cx} y={cy+10} textAnchor="middle" fill="#e2e8f0" fontSize="13" fontWeight="bold">${pieTotal.toFixed(0)}</text>
+            <text x={cx} y={cy+24} textAnchor="middle" fill="#64748b" fontSize="10">/month</text>
+          </svg>
+          <div style={{flex:1,minWidth:140}}>
+            {pieData.map(([cat,val])=>(
+              <div key={cat} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                <div style={{width:10,height:10,borderRadius:2,background:CAT_COLORS[cat]||CAT_COLORS["Other"],flexShrink:0}}/>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12}}><span style={{color:"#cbd5e1"}}>{cat}</span><span style={{color:"#f59e0b",fontWeight:700}}>${val.toFixed(0)}</span></div>
+                  <div style={{background:"#0f172a",borderRadius:3,height:4,marginTop:3,overflow:"hidden"}}><div style={{height:"100%",width:(pieTotal>0?(val/pieTotal*100):0)+"%",background:CAT_COLORS[cat]||CAT_COLORS["Other"],borderRadius:3}}/></div>
+                </div>
+                <span style={{fontSize:11,color:"#475569",minWidth:32,textAlign:"right"}}>{pieTotal>0?(val/pieTotal*100).toFixed(0):0}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{background:"#1e293b",borderRadius:12,padding:20,border:"1px solid #334155"}}>
+        <h4 style={{margin:"0 0 14px",fontSize:14,color:"#94a3b8",textTransform:"uppercase",letterSpacing:1,fontWeight:600}}>Bill Category Breakdown</h4>
+        {pieData.map(([cat,val])=>{
+          const color=CAT_COLORS[cat]||CAT_COLORS["Other"];
+          const catBills=[...bills].filter(b=>(BILL_CATEGORIES[b.name]||"Other")===cat).sort((a,b)=>a.name.localeCompare(b.name));
+          return (
+            <div key={cat} style={{marginBottom:16}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid "+color+"44"}}><div style={{width:10,height:10,borderRadius:2,background:color,flexShrink:0}}/><span style={{fontWeight:700,fontSize:13,color:color}}>{cat}</span><span style={{fontSize:12,color:"#64748b",marginLeft:"auto"}}>${val.toFixed(2)}/mo</span></div>
+              {catBills.map(b=>(
+                <div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 8px",marginBottom:4,borderRadius:6,background:"#0f172a"}}>
+                  <span style={{fontSize:13,color:"#cbd5e1"}}>{b.name}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,color:"#475569"}}>{b.recurring==="biweekly"?"biweekly":"day "+b.due}</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",minWidth:60,textAlign:"right"}}>${b.amount.toFixed(2)}</span></div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [now,          setNow]          = useState(()=>getNow());
+  const [bills,        setBillsState]   = useState(DEFAULT_BILLS);
+  const [sources,      setSources]      = useState([]);
+  const [overrides,    setOverrides]    = useState({});
+  const [paid,         setPaid]         = useState({});
+  const [billAmtOvr,   setBillAmtOvr]   = useState({});
+  const [tab,          setTab]          = useState("dashboard");
+  const [showBillForm, setShowBillForm] = useState(false);
+  const [billForm,     setBillForm]     = useState({name:"",amount:"",due:"",recurring:"monthly"});
+  const [editBill,     setEditBill]     = useState(null);
+  const [showSrcForm,  setShowSrcForm]  = useState(false);
+  const [srcForm,      setSrcForm]      = useState({id:"",name:"",amount:"",nextPayDate:"",color:COLORS[0]});
+  const [editSrc,      setEditSrc]      = useState(null);
+  const [aiText,       setAiText]       = useState("");
+  const [aiLoading,    setAiLoading]    = useState(false);
+  const [ovModal,      setOvModal]      = useState(null);
+  const [ovInput,      setOvInput]      = useState("");
+  const [editAmtKey,   setEditAmtKey]   = useState(null);
+  const [editAmtInput, setEditAmtInput] = useState("");
+  const [syncStatus,   setSyncStatus]   = useState("idle");
+  const [loading,      setLoading]      = useState(true);
+
+  const CUR_YEAR  = now.year;
+  const CUR_MONTH = now.month;
+  const TODAY_STR = now.str;
+
+  useEffect(()=>{ const id=setInterval(()=>setNow(getNow()),60000); return ()=>clearInterval(id); },[]);
+
+  const setters = useMemo(()=>({setSources,setBillsState,setPaid,setBillAmtOvr,setOverrides}),[]);
+
+  useEffect(()=>{
+    (async()=>{
+      setLoading(true);
+      let d=await loadFromSupabase();
+      if (!d) { try { const r=localStorage.getItem(STORAGE_KEY); if(r) d=JSON.parse(r); } catch {} }
+      if (d) applyLoaded(d,setters);
+      setLoading(false);
+    })();
+  },[]);
+
+  const saveTimer=useMemo(()=>({id:null}),[]);
+  const persist=useCallback((b,s,o,pd,bao)=>{
+    const payload={bills:b,sources:s,overrides:o,paid:pd,billAmtOverrides:bao,lastReset:monthKey()};
+    try { localStorage.setItem(STORAGE_KEY,JSON.stringify(payload)); } catch {}
+    clearTimeout(saveTimer.id);
+    setSyncStatus("syncing");
+    saveTimer.id=setTimeout(async()=>{ const ok=await saveToSupabase(payload); setSyncStatus(ok?"ok":"error"); setTimeout(()=>setSyncStatus("idle"),3000); },1500);
+  },[saveTimer]);
+
+  const saveBills  =b  =>{ setBillsState(b);  persist(b,sources,overrides,paid,billAmtOvr); };
+  const saveSources=s  =>{ setSources(s);      persist(bills,s,overrides,paid,billAmtOvr); };
+  const saveOvr    =o  =>{ setOverrides(o);    persist(bills,sources,o,paid,billAmtOvr); };
+  const savePaid   =pd =>{ setPaid(pd);        persist(bills,sources,overrides,pd,billAmtOvr); };
+  const saveBao    =bao=>{ setBillAmtOvr(bao); persist(bills,sources,overrides,paid,bao); };
+
+  const forceSync=async()=>{
+    setSyncStatus("syncing");
+    const d=await loadFromSupabase();
+    if (d) { applyLoaded(d,setters); setSyncStatus("ok"); setTimeout(()=>setSyncStatus("idle"),3000); }
+    else   { setSyncStatus("error"); setTimeout(()=>setSyncStatus("idle"),3000); }
+  };
+
+  const paydates    = useMemo(()=>buildPaydates(sources,overrides),[sources,overrides]);
+  const assigned    = useMemo(()=>buildAssigned(paydates,bills),[paydates,bills]);
+  const combined    = useMemo(()=>buildCombined(paydates),[paydates]);
+  const curMonthPay = useMemo(()=>combined.filter(cd=>{ const d=new Date(cd.date+"T00:00:00"); return d.getFullYear()===CUR_YEAR&&d.getMonth()===CUR_MONTH; }),[combined,CUR_YEAR,CUR_MONTH]);
+
+  const totalMonthlyIncome=sources.reduce((s,src)=>s+(parseFloat(src.amount)||0)*2,0);
+  const totalMonthlyBills =bills.reduce((s,b)=>s+(b.recurring==="biweekly"?b.amount*2:b.amount),0);
+
+  const isPaid    =(id,due)=>!!paid[paidKey(id,due)];
+  const getBillAmt=(b,due,pc)=>{ const k=bamKey(b.id,due,pc); return billAmtOvr[k]!==undefined?billAmtOvr[k]:b.amount; };
+  const togglePaid=(id,due)=>{ const k=paidKey(id,due),u={...paid,[k]:!paid[k]}; if(!u[k]) delete u[k]; savePaid(u); };
+
+  const handleSaveSrc=()=>{
+    if (!srcForm.name||!srcForm.amount||!srcForm.nextPayDate) return;
+    const updated=editSrc?sources.map(s=>s.id===editSrc.id?{...srcForm,amount:parseFloat(srcForm.amount)}:s):[...sources,{...srcForm,id:"src-"+Date.now(),amount:parseFloat(srcForm.amount),color:COLORS[sources.length%COLORS.length]}];
+    saveSources(updated); setSrcForm({id:"",name:"",amount:"",nextPayDate:"",color:COLORS[0]}); setEditSrc(null); setShowSrcForm(false);
+  };
+  const deleteSrc    =id=>saveSources(sources.filter(s=>s.id!==id));
+  const startEditSrc =src=>{ setEditSrc(src); setSrcForm({...src}); setShowSrcForm(true); setTab("income"); };
+  const handleAddBill=()=>{
+    if (!billForm.name||!billForm.amount||(billForm.recurring==="monthly"&&!billForm.due)) return;
+    const due=billForm.recurring==="biweekly"?"BIWEEKLY":parseInt(billForm.due);
+    const b={...billForm,id:editBill?editBill.id:"bill-"+Date.now(),amount:parseFloat(billForm.amount),due};
+    saveBills(editBill?bills.map(x=>x.id===editBill.id?b:x):[...bills,b]);
+    setBillForm({name:"",amount:"",due:"",recurring:"monthly"}); setEditBill(null); setShowBillForm(false);
+  };
+  const deleteBill    =id=>saveBills(bills.filter(b=>b.id!==id));
+  const startEditBill =b=>{ setEditBill(b); setBillForm({name:b.name,amount:b.amount,due:b.due==="BIWEEKLY"?"":b.due,recurring:b.recurring}); setShowBillForm(true); setTab("bills"); };
+  const openOvModal=(src,date)=>{ const k=src.id+"__"+date; setOvModal({sourceId:src.id,date,sourceName:src.name,baseAmount:parseFloat(src.amount),color:src.color,key:k}); setOvInput(overrides[k]!==undefined?overrides[k]:parseFloat(src.amount)); };
+  const saveOvModal =()=>{ const v=parseFloat(ovInput); if(!isNaN(v)) saveOvr({...overrides,[ovModal.key]:v}); setOvModal(null); };
+  const clearOvModal=()=>{ const o={...overrides}; delete o[ovModal.key]; saveOvr(o); setOvModal(null); };
+
+  const getAI=async()=>{
+    if (!sources.length||!bills.length) return;
+    setAiLoading(true); setAiText("");
+    const summary=combined.slice(0,6).map(cd=>{ const allB=uniq(cd.sources.flatMap(p=>assigned[p.date+"_"+p.sourceId]||[])); const used=allB.reduce((s,b)=>s+b.amount,0); return fmt(cd.date)+": income $"+cd.totalIncome.toFixed(2)+", bills: "+(allB.map(b=>b.name+" $"+b.amount).join(", ")||"none")+", left: $"+(cd.totalIncome-used).toFixed(2); }).join("\n");
+    try {
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:"You are a personal finance advisor. Bi-weekly household budget:\n\n"+summary+"\n\nGive 3-5 practical, specific, friendly suggestions. Use bullet points."}]})});
+      const d=await res.json(); setAiText(d.content?.[0]?.text||"No suggestions available.");
+    } catch { setAiText("Could not load suggestions. Please try again."); }
+    setAiLoading(false);
+  };
+
+  const paidThisMonth=useMemo(()=>{
+    const s=new Set();
+    combined.forEach(cd=>{ uniq(cd.sources.flatMap(p=>assigned[p.date+"_"+p.sourceId]||[])).forEach(b=>{ const due=new Date(b.dueDate+"T00:00:00"); if(due.getFullYear()===CUR_YEAR&&due.getMonth()===CUR_MONTH&&isPaid(b.id,b.dueDate)) s.add(b.id); }); });
+    return s;
+  },[combined,assigned,paid,CUR_YEAR,CUR_MONTH]);
+
+  const sortedBills=useMemo(()=>[...bills].sort((a,b)=>a.name.localeCompare(b.name)),[bills]);
+  const tabs=["dashboard","income","paychecks","bills","by paycheck","suggestions"];
+
+  if (loading) return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",color:"#e2e8f0"}}>
+      <div style={{fontSize:40,marginBottom:16}}>💰</div>
+      <div style={{fontSize:16,fontWeight:600,marginBottom:8}}>Loading Budget Manager</div>
+      <div style={{fontSize:13,color:"#64748b"}}>Syncing from Supabase…</div>
+    </div>
+  );
+
+  return (
+    <div>
+      {ovModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}}>
+          <div style={{background:"#1e293b",borderRadius:16,padding:24,width:"100%",maxWidth:320,border:"1px solid "+ovModal.color+"66"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><div style={{width:12,height:12,borderRadius:"50%",background:ovModal.color}}/><span style={{fontWeight:700,color:ovModal.color}}>{ovModal.sourceName}</span></div>
+            <h3 style={{margin:"0 0 4px",fontSize:16}}>Edit Paycheck Amount</h3>
+            <p style={{margin:"0 0 16px",fontSize:12,color:"#64748b"}}>{fmt(ovModal.date)} · Base: ${ovModal.baseAmount.toFixed(2)}<br/>Only affects this one date.</p>
+            <label style={{fontSize:12,color:"#94a3b8"}}>Actual Amount ($)</label>
+            <input type="number" value={ovInput} onChange={e=>setOvInput(e.target.value)} style={{display:"block",width:"100%",marginTop:6,padding:"10px 12px",background:"#0f172a",border:"1px solid "+ovModal.color+"66",borderRadius:8,color:"#e2e8f0",fontSize:16,boxSizing:"border-box"}}/>
+            <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
+              <button onClick={saveOvModal} style={S.btn}>Save</button>
+              {overrides[ovModal.key]!==undefined&&<button onClick={clearOvModal} style={{...S.sec,color:"#f87171"}}>Reset</button>}
+              <button onClick={()=>setOvModal(null)} style={S.sec}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{background:"linear-gradient(135deg,#1e40af,#7c3aed)",padding:"20px 24px 0",boxShadow:"0 4px 20px rgba(0,0,0,.3)"}}>
+        <div style={{maxWidth:720,margin:"0 auto"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div><h1 style={{margin:0,fontSize:22,fontWeight:700}}>💰 Budget Manager</h1><p style={{margin:"4px 0 0",opacity:.8,fontSize:13}}>Household bi-weekly tracker</p></div>
+            <div style={{display:"flex",alignItems:"center",gap:10,paddingTop:4}}>
+              <button onClick={forceSync} disabled={syncStatus==="syncing"} style={{background:"none",border:"1px solid rgba(255,255,255,.3)",borderRadius:6,color:"rgba(255,255,255,.8)",fontSize:11,padding:"4px 10px",cursor:"pointer"}}>{syncStatus==="syncing"?"Syncing…":"↻ Sync"}</button>
+              <SyncBadge status={syncStatus}/>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:3,flexWrap:"wrap",marginTop:16}}>
+            {tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"7px 12px",border:"none",borderRadius:"7px 7px 0 0",cursor:"pointer",fontSize:11,fontWeight:600,textTransform:"capitalize",background:tab===t?"#0f172a":"rgba(255,255,255,.1)",color:tab===t?"#e2e8f0":"rgba(255,255,255,.7)"}}>{t}</button>)}
+          </div>
+        </div>
+      </div>
+
+      <div style={{maxWidth:720,margin:"0 auto",padding:"24px 16px"}}>
+
+        {tab==="dashboard"&&(
+          <div>
+            <DueToday bills={bills} combined={combined} assigned={assigned} paid={paid} isPaid={isPaid} getBillAmt={getBillAmt} todayStr={TODAY_STR}/>
+            {!sources.length&&(<div style={{background:"#1e3a5f",border:"1px solid #3b82f6",borderRadius:12,padding:20,marginBottom:20,textAlign:"center"}}><div style={{fontSize:32,marginBottom:8}}>👥</div><p style={{margin:"0 0 12px",color:"#93c5fd"}}>Add your income sources to get started!</p><button onClick={()=>{setTab("income");setShowSrcForm(true);}} style={S.btn}>+ Add Income Source</button></div>)}
+            {sources.length>0&&(
+              <div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:20}}>
+                  <StatCard label="Monthly Income" value={"$"+totalMonthlyIncome.toFixed(2)} color="#22c55e" icon="💵"/>
+                  <StatCard label="Monthly Bills"  value={"$"+totalMonthlyBills.toFixed(2)}  color="#f59e0b" icon="📋"/>
+                  <StatCard label="Monthly Left"   value={"$"+(totalMonthlyIncome-totalMonthlyBills).toFixed(2)} color={(totalMonthlyIncome-totalMonthlyBills)>=0?"#22c55e":"#ef4444"} icon="🏦"/>
+                  <StatCard label="Bills Paid"     value={paidThisMonth.size+"/"+bills.length} color="#818cf8" icon="✅"/>
+                </div>
+                <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+                  {sources.map(src=>(
+                    <div key={src.id} style={{background:"#1e293b",borderRadius:10,padding:"10px 16px",border:"1px solid "+src.color+"44",flex:1,minWidth:140}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><div style={{width:10,height:10,borderRadius:"50%",background:src.color}}/><span style={{fontWeight:700,fontSize:13}}>{src.name}</span></div>
+                      <div style={{fontSize:18,fontWeight:800,color:src.color}}>${parseFloat(src.amount).toFixed(2)}</div>
+                      <div style={{fontSize:11,color:"#64748b"}}>per paycheck · biweekly</div>
+                    </div>
+                  ))}
+                </div>
+                <h3 style={{margin:"0 0 12px",color:"#94a3b8",fontSize:13,fontWeight:600,textTransform:"uppercase",letterSpacing:1}}>Upcoming Pay Periods</h3>
+                {combined.slice(0,4).map(cd=>{
+                  const allB=uniq(cd.sources.flatMap(p=>assigned[p.date+"_"+p.sourceId]||[]));
+                  const used=allB.reduce((s,b)=>s+b.amount,0),left=cd.totalIncome-used,pct=Math.min(100,(used/cd.totalIncome)*100);
+                  return (
+                    <div key={cd.date} style={{background:"#1e293b",borderRadius:12,padding:16,marginBottom:12,border:"1px solid #334155"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                        <div><span style={{fontWeight:700}}>📅 {fmt(cd.date)}</span><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{cd.sources.map(p=><span key={p.sourceId} style={{fontSize:11,background:p.color+"22",color:p.color,padding:"1px 8px",borderRadius:10,border:"1px solid "+p.color+"44"}}>{p.isOverridden&&"✏️ "}{p.sourceName} +${p.amount.toFixed(2)}</span>)}</div></div>
+                        <span style={{color:"#22c55e",fontWeight:700,fontSize:16}}>${cd.totalIncome.toFixed(2)}</span>
+                      </div>
+                      <div style={{background:"#0f172a",borderRadius:6,height:8,margin:"8px 0",overflow:"hidden"}}><div style={{height:"100%",width:pct+"%",background:pct>90?"#ef4444":pct>70?"#f59e0b":"#22c55e",borderRadius:6}}/></div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#94a3b8"}}><span>Bills: <b style={{color:"#f59e0b"}}>${used.toFixed(2)}</b></span><span>Left: <b style={{color:left>=0?"#22c55e":"#ef4444"}}>${left.toFixed(2)}</b></span></div>
+                    </div>
+                  );
+                })}
+                <Charts bills={bills} totalMonthlyIncome={totalMonthlyIncome} totalMonthlyBills={totalMonthlyBills}/>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab==="income"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h3 style={{margin:0}}>Income Sources</h3><button onClick={()=>{setShowSrcForm(!showSrcForm);setEditSrc(null);setSrcForm({id:"",name:"",amount:"",nextPayDate:"",color:COLORS[0]});}} style={S.btn}>{showSrcForm?"✕ Cancel":"+ Add Source"}</button></div>
+            {showSrcForm&&(
+              <div style={{background:"#1e293b",borderRadius:12,padding:16,marginBottom:16,border:"1px solid #3b82f6"}}>
+                <h4 style={{margin:"0 0 12px",color:"#93c5fd"}}>{editSrc?"Edit Source":"New Income Source"}</h4>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>Name</label><input placeholder="e.g. Scott's Paycheck" value={srcForm.name} onChange={e=>setSrcForm({...srcForm,name:e.target.value})} style={S.inp}/></div>
+                  <div><label style={S.lbl}>Typical Amount ($)</label><input type="number" placeholder="0.00" value={srcForm.amount} onChange={e=>setSrcForm({...srcForm,amount:e.target.value})} style={S.inp}/></div>
+                  <div><label style={S.lbl}>Next Pay Date</label><input type="date" value={srcForm.nextPayDate} onChange={e=>setSrcForm({...srcForm,nextPayDate:e.target.value})} style={S.inp}/></div>
+                  <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>Color Tag</label><div style={{display:"flex",gap:8,marginTop:6}}>{COLORS.map(c=><div key={c} onClick={()=>setSrcForm({...srcForm,color:c})} style={{width:28,height:28,borderRadius:"50%",background:c,cursor:"pointer",border:srcForm.color===c?"3px solid #fff":"3px solid transparent"}}/>)}</div></div>
+                </div>
+                <button onClick={handleSaveSrc} style={{...S.btn,marginTop:14}}>{editSrc?"Save Changes":"Add Source"}</button>
+              </div>
+            )}
+            {!sources.length&&!showSrcForm&&<div style={{textAlign:"center",padding:40,color:"#475569"}}><div style={{fontSize:40,marginBottom:10}}>👥</div><p>No income sources yet!</p></div>}
+            {sources.map(src=>(
+              <div key={src.id} style={{background:"#1e293b",borderRadius:12,padding:16,marginBottom:12,border:"1px solid "+src.color+"44"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:12,height:12,borderRadius:"50%",background:src.color}}/><span style={{fontWeight:700,fontSize:16}}>{src.name}</span></div>
+                    <div style={{color:src.color,fontSize:22,fontWeight:800,margin:"6px 0 4px"}}>${parseFloat(src.amount).toFixed(2)} <span style={{fontSize:13,color:"#64748b",fontWeight:400}}>/ paycheck (typical)</span></div>
+                    <div style={{fontSize:12,color:"#64748b"}}>Next pay: {fmt(src.nextPayDate)} · Biweekly</div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}><button onClick={()=>startEditSrc(src)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16}}>✏️</button><button onClick={()=>deleteSrc(src.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#ef4444"}}>🗑️</button></div>
+                </div>
+                <div style={{marginTop:12}}>
+                  <div style={{fontSize:11,color:"#64748b",marginBottom:6,textTransform:"uppercase",letterSpacing:.5}}>Tap a date to adjust that paycheck</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                    {genDates(src.nextPayDate).map(d=>{ const k=src.id+"__"+d,isOv=overrides[k]!==undefined,amt=isOv?overrides[k]:parseFloat(src.amount); return <button key={d} onClick={()=>openOvModal(src,d)} style={{background:isOv?src.color+"33":"#0f172a",border:"1px solid "+(isOv?src.color:"#334155"),borderRadius:8,padding:"5px 10px",cursor:"pointer",color:isOv?src.color:"#94a3b8",fontSize:11,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}><span>{fmtS(d)}</span><span style={{fontWeight:700,fontSize:12,color:isOv?src.color:"#e2e8f0"}}>${amt.toFixed(2)}{isOv?" ✏️":""}</span></button>; })}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab==="paychecks"&&(
+          <div>
+            <h3 style={{margin:"0 0 16px"}}>Pay Period Breakdown</h3>
+            {!sources.length&&<p style={{color:"#64748b",textAlign:"center",marginTop:40}}>Add income sources first!</p>}
+            {combined.map(cd=>{
+              const allB=uniq(cd.sources.flatMap(p=>assigned[p.date+"_"+p.sourceId]||[])).sort((a,b)=>a.name.localeCompare(b.name));
+              const used=allB.reduce((s,b)=>s+b.amount,0),left=cd.totalIncome-used;
+              return (
+                <div key={cd.date} style={{background:"#1e293b",borderRadius:12,padding:16,marginBottom:14,border:"1px solid #334155"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                    <div><div style={{fontWeight:700,marginBottom:4}}>📅 {fmt(cd.date)}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{cd.sources.map(p=><span key={p.sourceId} style={{fontSize:11,background:p.color+"22",color:p.color,padding:"1px 8px",borderRadius:10,border:"1px solid "+p.color+"44"}}>{p.isOverridden&&"✏️ "}{p.sourceName} +${p.amount.toFixed(2)}</span>)}</div></div>
+                    <span style={{color:"#22c55e",fontWeight:700}}>${cd.totalIncome.toFixed(2)}</span>
+                  </div>
+                  <div style={{borderTop:"1px solid #334155",paddingTop:8}}>
+                    {allB.length===0?<p style={{color:"#475569",fontSize:13,margin:0}}>No bills assigned</p>:allB.map((b,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #1e293b",fontSize:13}}><span>{b.name} <span style={{fontSize:11,color:"#64748b"}}>due {fmtS(b.dueDate)}</span></span><span style={{color:"#f59e0b"}}>-${b.amount.toFixed(2)}</span></div>)}
+                    <div style={{display:"flex",justifyContent:"space-between",marginTop:8,fontWeight:700}}><span>Remaining</span><span style={{color:left>=0?"#22c55e":"#ef4444"}}>${left.toFixed(2)}</span></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {tab==="bills"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <h3 style={{margin:0}}>Bills ({bills.length})</h3>
+              <div style={{display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:12,color:"#64748b"}}>{paidThisMonth.size}/{bills.length} paid this month</span><button onClick={()=>{setShowBillForm(!showBillForm);setEditBill(null);setBillForm({name:"",amount:"",due:"",recurring:"monthly"});}} style={S.btn}>{showBillForm?"✕ Cancel":"+ Add Bill"}</button></div>
+            </div>
+            {showBillForm&&(
+              <div style={{background:"#1e293b",borderRadius:12,padding:16,marginBottom:16,border:"1px solid #3b82f6"}}>
+                <h4 style={{margin:"0 0 12px",color:"#93c5fd"}}>{editBill?"Edit Bill":"New Bill"}</h4>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>Bill Name</label><input placeholder="e.g. Rent" value={billForm.name} onChange={e=>setBillForm({...billForm,name:e.target.value})} style={S.inp}/></div>
+                  <div><label style={S.lbl}>Amount ($)</label><input type="number" placeholder="0.00" value={billForm.amount} onChange={e=>setBillForm({...billForm,amount:e.target.value})} style={S.inp}/></div>
+                  <div><label style={S.lbl}>Frequency</label><select value={billForm.recurring} onChange={e=>setBillForm({...billForm,recurring:e.target.value})} style={S.inp}><option value="monthly">Monthly</option><option value="biweekly">Biweekly</option></select></div>
+                  {billForm.recurring==="monthly"&&<div style={{gridColumn:"1/-1"}}><label style={S.lbl}>Day of Month Due (1–31)</label><input type="number" min="1" max="31" placeholder="e.g. 15" value={billForm.due} onChange={e=>setBillForm({...billForm,due:e.target.value})} style={S.inp}/></div>}
+                </div>
+                <button onClick={handleAddBill} style={{...S.btn,marginTop:12}}>{editBill?"Save Changes":"Add Bill"}</button>
+              </div>
+            )}
+            {sortedBills.map(b=>{ const bp=paidThisMonth.has(b.id); return (
+              <div key={b.id} style={{background:bp?"#0f2a1a":"#1e293b",borderRadius:10,padding:12,marginBottom:8,border:"1px solid "+(bp?"#22c55e44":"#334155"),display:"flex",justifyContent:"space-between",alignItems:"center",transition:"all .2s"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:20,height:20,borderRadius:5,border:"2px solid "+(bp?"#22c55e":"#475569"),background:bp?"#22c55e":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{bp&&<span style={{color:"#fff",fontSize:12,lineHeight:1}}>✓</span>}</div>
+                  <div><span style={{fontWeight:600,fontSize:14,color:bp?"#86efac":"#e2e8f0",textDecoration:bp?"line-through":"none"}}>{b.name}</span><div style={{marginTop:2}}><span style={{fontSize:11,color:b.recurring==="biweekly"?"#22c55e":"#818cf8",background:"#1e1b4b",padding:"1px 7px",borderRadius:10}}>{b.recurring==="biweekly"?"biweekly":"day "+b.due}</span></div></div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{color:bp?"#86efac":"#f59e0b",fontWeight:700}}>${b.amount.toFixed(2)}</span><button onClick={()=>startEditBill(b)} style={{background:"none",border:"none",cursor:"pointer",fontSize:15}}>✏️</button><button onClick={()=>deleteBill(b.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:15,color:"#ef4444"}}>🗑️</button></div>
+              </div>
+            ); })}
+          </div>
+        )}
+
+        {tab==="by paycheck"&&(
+          <div>
+            <h3 style={{margin:"0 0 16px"}}>{MONTH_NAMES[CUR_MONTH]} — By Paycheck</h3>
+            {!sources.length&&<p style={{color:"#64748b",textAlign:"center",marginTop:40}}>Add income sources first!</p>}
+            {sources.length>0&&curMonthPay.length===0&&<p style={{color:"#64748b",textAlign:"center",marginTop:40}}>No paychecks fall in {MONTH_NAMES[CUR_MONTH]} based on your schedule.</p>}
+            {curMonthPay.map(cd=>{
+              const allBRaw=cd.sources.flatMap(p=>assigned[p.date+"_"+p.sourceId]||[]);
+              const allB=uniq(allBRaw).filter(b=>!paid[skipKey(b.id,b.dueDate,cd.date)]).sort((a,b)=>a.name.localeCompare(b.name));
+              const paidBills=allB.filter(b=>isPaid(b.id,b.dueDate));
+              const paidAmt=paidBills.reduce((s,b)=>s+getBillAmt(b,b.dueDate,cd.date),0);
+              const totalAmt=allB.reduce((s,b)=>s+getBillAmt(b,b.dueDate,cd.date),0);
+              const left=cd.totalIncome-totalAmt;
+              return (
+                <div key={cd.date} style={{background:"#1e293b",borderRadius:12,padding:16,marginBottom:16,border:"1px solid #334155"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                    <div><div style={{fontWeight:700,fontSize:15}}>📅 {fmt(cd.date)}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{cd.sources.map(p=><span key={p.sourceId} style={{fontSize:11,background:p.color+"22",color:p.color,padding:"1px 8px",borderRadius:10,border:"1px solid "+p.color+"44"}}>{p.sourceName} +${p.amount.toFixed(2)}</span>)}</div></div>
+                    <div style={{textAlign:"right"}}><div style={{color:"#22c55e",fontWeight:700}}>${cd.totalIncome.toFixed(2)}</div><div style={{fontSize:11,color:left>=0?"#22c55e":"#ef4444"}}>{left>=0?"left":"over"}: ${Math.abs(left).toFixed(2)}</div></div>
+                  </div>
+                  <div style={{background:"#0f172a",borderRadius:6,height:6,marginBottom:10,overflow:"hidden"}}><div style={{height:"100%",width:(totalAmt>0?(paidAmt/totalAmt*100):0)+"%",background:"#22c55e",borderRadius:6,transition:"width .3s"}}/></div>
+                  <div style={{fontSize:12,color:"#64748b",marginBottom:10}}>{paidBills.length}/{allB.length} paid · ${paidAmt.toFixed(2)} of ${totalAmt.toFixed(2)}</div>
+                  {allB.length===0&&<p style={{color:"#475569",fontSize:13,margin:0}}>No bills assigned to this paycheck</p>}
+                  {allB.map(b=>{
+                    const paid_=isPaid(b.id,b.dueDate),ak=bamKey(b.id,b.dueDate,cd.date),dispAmt=getBillAmt(b,b.dueDate,cd.date),isEd=editAmtKey===ak;
+                    return (
+                      <div key={b.id+b.dueDate} style={{background:paid_?"#0f2a1a":"#0f172a",borderRadius:8,padding:"10px 12px",marginBottom:6,border:"1px solid "+(paid_?"#22c55e33":"#1e293b"),display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10,flex:1,cursor:"pointer"}} onClick={()=>{if(!isEd) togglePaid(b.id,b.dueDate);}}>
+                          <div style={{width:20,height:20,borderRadius:5,border:"2px solid "+(paid_?"#22c55e":"#475569"),background:paid_?"#22c55e":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{paid_&&<span style={{color:"#fff",fontSize:12,lineHeight:1}}>✓</span>}</div>
+                          <div><span style={{fontSize:13,fontWeight:600,color:paid_?"#86efac":"#e2e8f0",textDecoration:paid_?"line-through":"none"}}>{b.name}</span><div style={{fontSize:11,color:"#64748b"}}>due {fmtS(b.dueDate)}{billAmtOvr[ak]!==undefined?" · adjusted":""}</div></div>
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          {isEd?(
+                            <div style={{display:"flex",alignItems:"center",gap:4}}>
+                              <span style={{fontSize:12,color:"#94a3b8"}}>$</span>
+                              <input type="number" value={editAmtInput} onChange={e=>setEditAmtInput(e.target.value)} onClick={e=>e.stopPropagation()} autoFocus style={{width:72,padding:"3px 6px",background:"#1e293b",border:"1px solid #3b82f6",borderRadius:6,color:"#e2e8f0",fontSize:13,textAlign:"right"}}/>
+                              <button onClick={e=>{e.stopPropagation();const v=parseFloat(editAmtInput);if(!isNaN(v)) saveBao({...billAmtOvr,[ak]:v});setEditAmtKey(null);}} style={{background:"#22c55e",border:"none",borderRadius:5,color:"#fff",fontSize:12,padding:"3px 8px",cursor:"pointer",fontWeight:700}}>✓</button>
+                              <button onClick={e=>{e.stopPropagation();setEditAmtKey(null);}} style={{background:"#334155",border:"none",borderRadius:5,color:"#e2e8f0",fontSize:12,padding:"3px 8px",cursor:"pointer"}}>✕</button>
+                              {billAmtOvr[ak]!==undefined&&<button onClick={e=>{e.stopPropagation();const o={...billAmtOvr};delete o[ak];saveBao(o);setEditAmtKey(null);}} style={{background:"none",border:"none",cursor:"pointer",color:"#f87171",fontSize:11,padding:"2px 4px"}} title="Reset">↺</button>}
+                            </div>
+                          ):(
+                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{fontWeight:700,fontSize:13,color:paid_?"#86efac":billAmtOvr[ak]!==undefined?"#60a5fa":"#f59e0b"}}>${dispAmt.toFixed(2)}</span>
+                              <button title="Edit amount" onClick={e=>{e.stopPropagation();setEditAmtKey(ak);setEditAmtInput(dispAmt);}} style={{background:"none",border:"none",cursor:"pointer",color:"#475569",fontSize:13,padding:"2px 4px"}}>✏️</button>
+                              <button title="Remove" onClick={e=>{e.stopPropagation();savePaid({...paid,[skipKey(b.id,b.dueDate,cd.date)]:true});}} style={{background:"none",border:"none",cursor:"pointer",color:"#475569",fontSize:13,padding:"2px 4px"}}>✕</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {tab==="suggestions"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h3 style={{margin:0}}>AI Suggestions</h3><button onClick={getAI} disabled={aiLoading||!sources.length} style={S.btn}>{aiLoading?"Analyzing...":"✨ Get Suggestions"}</button></div>
+            {!sources.length&&<p style={{color:"#64748b"}}>Add income sources first.</p>}
+            {aiText?<div style={{background:"#1e293b",borderRadius:12,padding:20,border:"1px solid #7c3aed",lineHeight:1.7,whiteSpace:"pre-wrap",fontSize:14}}><div style={{color:"#a78bfa",fontWeight:700,marginBottom:10}}>✨ Personalized Budget Tips</div>{aiText}</div>:sources.length>0&&<div style={{background:"#1e293b",borderRadius:12,padding:30,textAlign:"center",border:"1px dashed #334155"}}><div style={{fontSize:40,marginBottom:10}}>🤖</div><p style={{color:"#64748b",margin:0}}>Click "Get Suggestions" for personalized tips!</p></div>}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
