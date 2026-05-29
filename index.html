@@ -476,7 +476,7 @@ function App() {
       <div style={{background:"linear-gradient(135deg,#1e40af,#7c3aed)",padding:"20px 24px 0",boxShadow:"0 4px 20px rgba(0,0,0,.3)"}}>
         <div style={{maxWidth:720,margin:"0 auto"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-            <div><h1 style={{margin:0,fontSize:22,fontWeight:700}}>💰 Budget Manager</h1><p style={{margin:"4px 0 0",opacity:.8,fontSize:13}}>Household bi-weekly tracker</p></div>
+            <div><h1 style={{margin:0,fontSize:22,fontWeight:700}}>💰 Budget Manager</h1></div>
             <div style={{display:"flex",alignItems:"center",gap:10,paddingTop:4}}>
               <button onClick={forceSync} disabled={syncStatus==="syncing"} style={{background:"none",border:"1px solid rgba(255,255,255,.3)",borderRadius:6,color:"rgba(255,255,255,.8)",fontSize:11,padding:"4px 10px",cursor:"pointer"}}>{syncStatus==="syncing"?"Syncing...":"↻ Sync"}</button>
               <SyncBadge status={syncStatus}/>
