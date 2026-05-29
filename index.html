@@ -153,7 +153,7 @@ function buildPaydates(sources,overrides) {
   const out=[];
   sources.forEach(src=>{
     if (!src.nextPayDate||!src.amount) return;
-    genDates(src.nextPayDate).forEach(d=>{
+    genDates(addDays(src.nextPayDate,-14),7).forEach(d=>{
       const k=src.id+"__"+d,ov=overrides[k];
       out.push({date:d,sourceId:src.id,amount:ov!==undefined?ov:parseFloat(src.amount),baseAmount:parseFloat(src.amount),isOverridden:ov!==undefined,sourceName:src.name,color:src.color});
     });
@@ -394,7 +394,12 @@ function App() {
   const paydates    = useMemo(()=>buildPaydates(sources,overrides),[sources,overrides]);
   const assigned    = useMemo(()=>buildAssigned(paydates,bills),[paydates,bills]);
   const combined    = useMemo(()=>buildCombined(paydates),[paydates]);
-  const curMonthPay = useMemo(()=>combined.filter(cd=>{ const d=new Date(cd.date+"T00:00:00"); return d.getFullYear()===CUR_YEAR&&d.getMonth()===CUR_MONTH; }),[combined,CUR_YEAR,CUR_MONTH]);
+  const curMonthPay = useMemo(()=>{
+    const monthStart=CUR_YEAR+"-"+String(CUR_MONTH+1).padStart(2,"0")+"-01";
+    const inMonth=combined.filter(cd=>{ const d=new Date(cd.date+"T00:00:00"); return d.getFullYear()===CUR_YEAR&&d.getMonth()===CUR_MONTH; });
+    const prevPc=[...combined].reverse().find(cd=>cd.date<monthStart);
+    return prevPc?[prevPc,...inMonth]:inMonth;
+  },[combined,CUR_YEAR,CUR_MONTH]);
 
   const totalMonthlyIncome=sources.reduce((s,src)=>s+(parseFloat(src.amount)||0)*2,0);
   const totalMonthlyBills =bills.reduce((s,b)=>s+(b.recurring==="biweekly"?b.amount*2:b.amount),0);
