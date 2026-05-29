@@ -29,19 +29,19 @@ const ROW_ID       = "household_budget";
 
 async function loadFromSupabase() {
   try {
-    const res = await fetch(SUPABASE_URL+"/rest/v1/budget_data?id=eq."+ROW_ID+"&select=data",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}});
-    const rows = await res.json();
-    console.log("LOAD:",res.status, JSON.stringify(rows).slice(0,200));
-    if (rows && rows.length>0) return rows[0].data;
+    const res=await fetch(SUPABASE_URL+"/rest/v1/budget_data?id=eq."+ROW_ID+"&select=data",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}});
+    const rows=await res.json();
+    console.log("LOAD:",res.status,JSON.stringify(rows).slice(0,200));
+    if (rows&&rows.length>0) return rows[0].data;
     return null;
   } catch(e) { console.error("LOAD error:",e); return null; }
 }
 
 async function saveToSupabase(payload) {
   try {
-    const res = await fetch(SUPABASE_URL+"/rest/v1/budget_data",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({id:ROW_ID,data:payload,updated_at:new Date().toISOString()})});
-    const text = await res.text();
-    console.log("SAVE:",res.status, text.slice(0,200));
+    const res=await fetch(SUPABASE_URL+"/rest/v1/budget_data",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({id:ROW_ID,data:payload,updated_at:new Date().toISOString()})});
+    const text=await res.text();
+    console.log("SAVE:",res.status,text.slice(0,200));
     return res.ok;
   } catch(e) { console.error("SAVE error:",e); return false; }
 }
@@ -138,8 +138,9 @@ const paidKey  = (id,due)    => "paid__"+id+"__"+due;
 const skipKey  = (id,due,pc) => "skip__"+id+"__"+due+"__"+pc;
 const bamKey   = (id,due,pc) => "billamt__"+id+"__"+due+"__"+pc;
 const getNow   = () => { const d=new Date(); return {year:d.getFullYear(),month:d.getMonth(),day:d.getDate(),str:d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}; };
-const fmtDue = b => b.recurring==="biweekly" ? "biweekly" : "Day "+b.due;
+const monthKey = () => { const n=getNow(); return n.year+"-"+n.month; };
 const uniq     = arr => [...new Map(arr.map(b=>[b.id+b.dueDate,b])).values()];
+const dueLbl   = b => b.recurring==="biweekly" ? "Biweekly" : "Day "+b.due;
 
 const S = {
   inp:{display:"block",width:"100%",marginTop:4,padding:"8px 12px",background:"#0f172a",border:"1px solid #334155",borderRadius:8,color:"#e2e8f0",fontSize:14,boxSizing:"border-box"},
@@ -317,7 +318,7 @@ function Charts({bills,totalMonthlyIncome,totalMonthlyBills}) {
               {catBills.map(b=>(
                 <div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 8px",marginBottom:4,borderRadius:6,background:"#0f172a"}}>
                   <span style={{fontSize:13,color:"#cbd5e1"}}>{b.name}</span>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}>                  <span style={{fontSize:11,color:"#475569"}}>{fmtDue(b)}</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",minWidth:60,textAlign:"right"}}>${b.amount.toFixed(2)}</span></div>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,color:"#475569"}}>{dueLbl(b)}</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",minWidth:60,textAlign:"right"}}>${b.amount.toFixed(2)}</span></div>
                 </div>
               ))}
             </div>
@@ -356,7 +357,6 @@ function App() {
   const TODAY_STR = now.str;
 
   useEffect(()=>{ const id=setInterval(()=>setNow(getNow()),60000); return ()=>clearInterval(id); },[]);
-
   const setters=useMemo(()=>({setSources,setBillsState,setPaid,setBillAmtOvr,setOverrides}),[]);
 
   useEffect(()=>{
@@ -417,8 +417,7 @@ function App() {
     saveBills(editBill?bills.map(x=>x.id===editBill.id?b:x):[...bills,b]);
     setBillForm({name:"",amount:"",due:"",recurring:"monthly"}); setEditBill(null); setShowBillForm(false);
   };
-  const deleteBill    =id=>saveBills(bills.filter(b=>b.id!==id));
-  const startEditBill =b=>{ setEditBill(b); setBillForm({name:b.name,amount:b.amount,due:b.due==="BIWEEKLY"?"":b.due,recurring:b.recurring}); setShowBillForm(true); setTab("bills"); };
+  const deleteBill=id=>saveBills(bills.filter(b=>b.id!==id));
   const openOvModal=(src,date)=>{ const k=src.id+"__"+date; setOvModal({sourceId:src.id,date,sourceName:src.name,baseAmount:parseFloat(src.amount),color:src.color,key:k}); setOvInput(overrides[k]!==undefined?overrides[k]:parseFloat(src.amount)); };
   const saveOvModal =()=>{ const v=parseFloat(ovInput); if(!isNaN(v)) saveOvr({...overrides,[ovModal.key]:v}); setOvModal(null); };
   const clearOvModal=()=>{ const o={...overrides}; delete o[ovModal.key]; saveOvr(o); setOvModal(null); };
@@ -618,7 +617,7 @@ function App() {
                   <div style={{background:bp?"#0f2a1a":"#1e293b",borderRadius:isEditing?"10px 10px 0 0":10,padding:12,marginBottom:isEditing?0:8,border:"1px solid "+(isEditing?"#3b82f6":bp?"#22c55e44":"#334155"),display:"flex",justifyContent:"space-between",alignItems:"center",transition:"all .2s"}}>
                     <div>
                       <span style={{fontWeight:600,fontSize:14,color:bp?"#86efac":"#e2e8f0",textDecoration:bp?"line-through":"none"}}>{b.name}</span>
-                      <div style={{marginTop:2}}><span style={{fontSize:11,color:b.recurring==="biweekly"?"#22c55e":"#818cf8",background:"#1e1b4b",padding:"1px 7px",borderRadius:10}}>{fmtDue(b)}</span></div>
+                      <div style={{marginTop:2}}><span style={{fontSize:11,color:b.recurring==="biweekly"?"#22c55e":"#818cf8",background:"#1e1b4b",padding:"1px 7px",borderRadius:10}}>{dueLbl(b)}</span></div>
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:10}}>
                       <span style={{color:bp?"#86efac":"#f59e0b",fontWeight:700}}>${b.amount.toFixed(2)}</span>
