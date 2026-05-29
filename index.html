@@ -138,7 +138,7 @@ const paidKey  = (id,due)    => "paid__"+id+"__"+due;
 const skipKey  = (id,due,pc) => "skip__"+id+"__"+due+"__"+pc;
 const bamKey   = (id,due,pc) => "billamt__"+id+"__"+due+"__"+pc;
 const getNow   = () => { const d=new Date(); return {year:d.getFullYear(),month:d.getMonth(),day:d.getDate(),str:d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}; };
-const monthKey = () => { const n=getNow(); return n.year+"-"+n.month; };
+const fmtDue = b => b.recurring==="biweekly" ? "biweekly" : "Day "+b.due;
 const uniq     = arr => [...new Map(arr.map(b=>[b.id+b.dueDate,b])).values()];
 
 const S = {
@@ -317,7 +317,7 @@ function Charts({bills,totalMonthlyIncome,totalMonthlyBills}) {
               {catBills.map(b=>(
                 <div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 8px",marginBottom:4,borderRadius:6,background:"#0f172a"}}>
                   <span style={{fontSize:13,color:"#cbd5e1"}}>{b.name}</span>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,color:"#475569"}}>{b.recurring==="biweekly"?"biweekly":"day "+b.due}</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",minWidth:60,textAlign:"right"}}>${b.amount.toFixed(2)}</span></div>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>                  <span style={{fontSize:11,color:"#475569"}}>{fmtDue(b)}</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",minWidth:60,textAlign:"right"}}>${b.amount.toFixed(2)}</span></div>
                 </div>
               ))}
             </div>
@@ -618,7 +618,7 @@ function App() {
                   <div style={{background:bp?"#0f2a1a":"#1e293b",borderRadius:isEditing?"10px 10px 0 0":10,padding:12,marginBottom:isEditing?0:8,border:"1px solid "+(isEditing?"#3b82f6":bp?"#22c55e44":"#334155"),display:"flex",justifyContent:"space-between",alignItems:"center",transition:"all .2s"}}>
                     <div>
                       <span style={{fontWeight:600,fontSize:14,color:bp?"#86efac":"#e2e8f0",textDecoration:bp?"line-through":"none"}}>{b.name}</span>
-                      <div style={{marginTop:2}}><span style={{fontSize:11,color:b.recurring==="biweekly"?"#22c55e":"#818cf8",background:"#1e1b4b",padding:"1px 7px",borderRadius:10}}>{b.recurring==="biweekly"?"biweekly":"day "+b.due}</span></div>
+                      <div style={{marginTop:2}}><span style={{fontSize:11,color:b.recurring==="biweekly"?"#22c55e":"#818cf8",background:"#1e1b4b",padding:"1px 7px",borderRadius:10}}>{fmtDue(b)}</span></div>
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:10}}>
                       <span style={{color:bp?"#86efac":"#f59e0b",fontWeight:700}}>${b.amount.toFixed(2)}</span>
