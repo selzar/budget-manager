@@ -247,10 +247,7 @@ function DueToday({bills,combined,assigned,paid,isPaid,getBillAmt,todayStr}) {
       {list.length===0?<p style={{margin:0,fontSize:13,color:"#475569"}}>No bills due today 🎉</p>
         :list.map(b=>{ const pd=isPaid(b.id,b.dueDate),amt=b.pcDate?getBillAmt(b,b.dueDate,b.pcDate):b.amount; return (
           <div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",marginBottom:6,borderRadius:8,background:pd?"#0f2a1a":"#0f172a",border:"1px solid "+(pd?"#22c55e33":"#1e293b")}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{width:18,height:18,borderRadius:4,border:"2px solid "+(pd?"#22c55e":"#475569"),background:pd?"#22c55e":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{pd&&<span style={{color:"#fff",fontSize:11,lineHeight:1}}>✓</span>}</div>
-              <span style={{fontSize:13,fontWeight:600,color:pd?"#86efac":"#e2e8f0",textDecoration:pd?"line-through":"none"}}>{b.name}</span>
-            </div>
+            <span style={{fontSize:13,fontWeight:600,color:pd?"#86efac":"#e2e8f0",textDecoration:pd?"line-through":"none"}}>{b.name}</span>
             <span style={{fontSize:13,fontWeight:700,color:pd?"#86efac":"#ef4444"}}>${amt.toFixed(2)}</span>
           </div>
         );})
