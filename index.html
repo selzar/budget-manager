@@ -1,26 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Budget Manager</title>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0f172a;font-family:system-ui,sans-serif;color:#e2e8f0;min-height:100vh}
-  input,select{outline:none}
-  button{font-family:inherit}
-  ::-webkit-scrollbar{width:6px}
-  ::-webkit-scrollbar-track{background:#1e293b}
-  ::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
-</style>
-</head>
-<body>
-<div id="root"></div>
-<script type="text/babel">
-const { useState, useEffect, useMemo, useCallback } = React;
+import { useState, useEffect, useMemo, useCallback } from "react";
 
 const STORAGE_KEY  = "biweekly_budget_v4";
 const SUPABASE_URL = "https://wkcpggocwzbivkhxwmjr.supabase.co";
@@ -29,19 +7,19 @@ const ROW_ID       = "household_budget";
 
 async function loadFromSupabase() {
   try {
-    const res = await fetch(SUPABASE_URL+"/rest/v1/budget_data?id=eq."+ROW_ID+"&select=data",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}});
-    const rows = await res.json();
-    console.log("LOAD:",res.status, JSON.stringify(rows).slice(0,200));
-    if (rows && rows.length>0) return rows[0].data;
+    const res=await fetch(SUPABASE_URL+"/rest/v1/budget_data?id=eq."+ROW_ID+"&select=data",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}});
+    const rows=await res.json();
+    console.log("LOAD:",JSON.stringify(rows).slice(0,200));
+    if (rows&&rows.length>0) return rows[0].data;
     return null;
   } catch(e) { console.error("LOAD error:",e); return null; }
 }
 
 async function saveToSupabase(payload) {
   try {
-    const res = await fetch(SUPABASE_URL+"/rest/v1/budget_data",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({id:ROW_ID,data:payload,updated_at:new Date().toISOString()})});
-    const text = await res.text();
-    console.log("SAVE:",res.status, text.slice(0,200));
+    const res=await fetch(SUPABASE_URL+"/rest/v1/budget_data",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({id:ROW_ID,data:payload,updated_at:new Date().toISOString()})});
+    const text=await res.text();
+    console.log("SAVE:",res.status,text.slice(0,200));
     return res.ok;
   } catch(e) { console.error("SAVE error:",e); return false; }
 }
@@ -197,8 +175,8 @@ function buildCombined(paydates) {
   return Object.values(byDate).sort((a,b)=>a.date.localeCompare(b.date));
 }
 
-function applyLoaded(d,setters) {
-  const {setSources,setBillsState,setPaid,setBillAmtOvr,setOverrides}=setters;
+function applyLoaded(d, setters) {
+  const {setSources,setBillsState,setPaid,setBillAmtOvr,setOverrides} = setters;
   const tm=monthKey();
   if (d.lastReset!==tm) {
     const c={};
@@ -223,11 +201,11 @@ function StatCard({label,value,color,icon}) {
 }
 
 function SyncBadge({status}) {
-  const cfg={idle:{color:"#475569",text:"Synced"},syncing:{color:"#f59e0b",text:"Syncing…"},ok:{color:"#22c55e",text:"Saved"},error:{color:"#ef4444",text:"Sync failed"}}[status]||{color:"#475569",text:""};
+  const cfg={idle:{color:"#475569",text:"Synced"},syncing:{color:"#f59e0b",text:"Syncing\u2026"},ok:{color:"#22c55e",text:"Saved"},error:{color:"#ef4444",text:"Sync failed"}}[status]||{color:"#475569",text:""};
   return <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:cfg.color}}><div style={{width:7,height:7,borderRadius:"50%",background:cfg.color}}/>{cfg.text}</div>;
 }
 
-function DueToday({bills,combined,assigned,paid,isPaid,getBillAmt,todayStr}) {
+function DueToday({bills,combined,assigned,paid,isPaid,billAmtOvr,getBillAmt,todayStr}) {
   const list=[]; const seen=new Set();
   combined.forEach(cd=>{
     uniq(cd.sources.flatMap(p=>assigned[p.date+"_"+p.sourceId]||[])).forEach(b=>{
@@ -244,7 +222,8 @@ function DueToday({bills,combined,assigned,paid,isPaid,getBillAmt,todayStr}) {
         <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18}}>📆</span><h4 style={{margin:0,fontSize:14,fontWeight:700,color:"#e2e8f0"}}>Due Today</h4><span style={{fontSize:12,color:"#64748b"}}>{fmtS(todayStr)}</span></div>
         {list.length>0&&<span style={{fontSize:12,color:"#64748b"}}>{paidCt}/{list.length} paid · <b style={{color:"#f59e0b"}}>${total.toFixed(2)}</b></span>}
       </div>
-      {list.length===0?<p style={{margin:0,fontSize:13,color:"#475569"}}>No bills due today 🎉</p>
+      {list.length===0
+        ?<p style={{margin:0,fontSize:13,color:"#475569"}}>No bills due today 🎉</p>
         :list.map(b=>{ const pd=isPaid(b.id,b.dueDate),amt=b.pcDate?getBillAmt(b,b.dueDate,b.pcDate):b.amount; return (
           <div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",marginBottom:6,borderRadius:8,background:pd?"#0f2a1a":"#0f172a",border:"1px solid "+(pd?"#22c55e33":"#1e293b")}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -277,7 +256,7 @@ function Charts({bills,totalMonthlyIncome,totalMonthlyBills}) {
         {bars.map(row=>(
           <div key={row.label} style={{marginBottom:12}}>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{color:"#94a3b8"}}>{row.label}</span><span style={{fontWeight:700,color:row.color}}>${row.val.toFixed(2)}</span></div>
-            <div style={{background:"#0f172a",borderRadius:6,height:10,overflow:"hidden"}}><div style={{height:"100%",width:row.pct+"%",background:row.color,borderRadius:6}}/></div>
+            <div style={{background:"#0f172a",borderRadius:6,height:10,overflow:"hidden"}}><div style={{height:"100%",width:row.pct+"%",background:row.color,borderRadius:6,transition:"width .5s"}}/></div>
           </div>
         ))}
         <div style={{marginTop:12,padding:"10px 14px",background:"#0f172a",borderRadius:8,display:"flex",justifyContent:"space-between",fontSize:12,color:"#64748b",flexWrap:"wrap",gap:6}}>
@@ -316,7 +295,7 @@ function Charts({bills,totalMonthlyIncome,totalMonthlyBills}) {
           const catBills=[...bills].filter(b=>(BILL_CATEGORIES[b.name]||"Other")===cat).sort((a,b)=>a.name.localeCompare(b.name));
           return (
             <div key={cat} style={{marginBottom:16}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid "+color+"44"}}><div style={{width:10,height:10,borderRadius:2,background:color,flexShrink:0}}/><span style={{fontWeight:700,fontSize:13,color:color}}>{cat}</span><span style={{fontSize:12,color:"#64748b",marginLeft:"auto"}}>${val.toFixed(2)}/mo</span></div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid "+color+"44"}}><div style={{width:10,height:10,borderRadius:2,background:color,flexShrink:0}}/><span style={{fontWeight:700,fontSize:13,color}}>{cat}</span><span style={{fontSize:12,color:"#64748b",marginLeft:"auto"}}>${val.toFixed(2)}/mo</span></div>
               {catBills.map(b=>(
                 <div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 8px",marginBottom:4,borderRadius:6,background:"#0f172a"}}>
                   <span style={{fontSize:13,color:"#cbd5e1"}}>{b.name}</span>
@@ -331,7 +310,7 @@ function Charts({bills,totalMonthlyIncome,totalMonthlyBills}) {
   );
 }
 
-function App() {
+export default function App() {
   const [now,          setNow]          = useState(()=>getNow());
   const [bills,        setBillsState]   = useState(DEFAULT_BILLS);
   const [sources,      setSources]      = useState([]);
@@ -378,13 +357,13 @@ function App() {
     try { localStorage.setItem(STORAGE_KEY,JSON.stringify(payload)); } catch {}
     clearTimeout(saveTimer.id);
     setSyncStatus("syncing");
-    saveTimer.id=setTimeout(async()=>{ const ok=await saveToSupabase(payload); setSyncStatus(ok?"ok":"error"); setTimeout(()=>setSyncStatus("idle"),3000); },1500);
+    saveTimer.id=setTimeout(async()=>{ await saveToSupabase(payload); setSyncStatus("ok"); setTimeout(()=>setSyncStatus("idle"),3000); },1500);
   },[saveTimer]);
 
   const saveBills  =b  =>{ setBillsState(b);  persist(b,sources,overrides,paid,billAmtOvr); };
   const saveSources=s  =>{ setSources(s);      persist(bills,s,overrides,paid,billAmtOvr); };
   const saveOvr    =o  =>{ setOverrides(o);    persist(bills,sources,o,paid,billAmtOvr); };
-  const savePaid   =pd =>{ setPaid(pd);        persist(bills,sources,overrides,pd,billAmtOvr); };
+  const savePaid   =pd =>{ setPaid(pd);         persist(bills,sources,overrides,pd,billAmtOvr); };
   const saveBao    =bao=>{ setBillAmtOvr(bao); persist(bills,sources,overrides,paid,bao); };
 
   const forceSync=async()=>{
@@ -447,15 +426,15 @@ function App() {
   const tabs=["dashboard","income","paychecks","bills","by paycheck","suggestions"];
 
   if (loading) return (
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",color:"#e2e8f0"}}>
+    <div style={{fontFamily:"system-ui,sans-serif",background:"#0f172a",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:"#e2e8f0"}}>
       <div style={{fontSize:40,marginBottom:16}}>💰</div>
       <div style={{fontSize:16,fontWeight:600,marginBottom:8}}>Loading Budget Manager</div>
-      <div style={{fontSize:13,color:"#64748b"}}>Syncing from Supabase…</div>
+      <div style={{fontSize:13,color:"#64748b"}}>Syncing from Supabase</div>
     </div>
   );
 
   return (
-    <div>
+    <div style={{fontFamily:"system-ui,sans-serif",background:"#0f172a",minHeight:"100vh",color:"#e2e8f0"}}>
       {ovModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}}>
           <div style={{background:"#1e293b",borderRadius:16,padding:24,width:"100%",maxWidth:320,border:"1px solid "+ovModal.color+"66"}}>
@@ -478,7 +457,9 @@ function App() {
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
             <div><h1 style={{margin:0,fontSize:22,fontWeight:700}}>💰 Budget Manager</h1><p style={{margin:"4px 0 0",opacity:.8,fontSize:13}}>Household bi-weekly tracker</p></div>
             <div style={{display:"flex",alignItems:"center",gap:10,paddingTop:4}}>
-              <button onClick={forceSync} disabled={syncStatus==="syncing"} style={{background:"none",border:"1px solid rgba(255,255,255,.3)",borderRadius:6,color:"rgba(255,255,255,.8)",fontSize:11,padding:"4px 10px",cursor:"pointer"}}>{syncStatus==="syncing"?"Syncing…":"↻ Sync"}</button>
+              <button onClick={forceSync} disabled={syncStatus==="syncing"} style={{background:"none",border:"1px solid rgba(255,255,255,.3)",borderRadius:6,color:"rgba(255,255,255,.8)",fontSize:11,padding:"4px 10px",cursor:"pointer"}}>
+                {syncStatus==="syncing"?"Syncing\u2026":"↻ Sync"}
+              </button>
               <SyncBadge status={syncStatus}/>
             </div>
           </div>
@@ -492,7 +473,7 @@ function App() {
 
         {tab==="dashboard"&&(
           <div>
-            <DueToday bills={bills} combined={combined} assigned={assigned} paid={paid} isPaid={isPaid} getBillAmt={getBillAmt} todayStr={TODAY_STR}/>
+            <DueToday bills={bills} combined={combined} assigned={assigned} paid={paid} isPaid={isPaid} billAmtOvr={billAmtOvr} getBillAmt={getBillAmt} todayStr={TODAY_STR}/>
             {!sources.length&&(<div style={{background:"#1e3a5f",border:"1px solid #3b82f6",borderRadius:12,padding:20,marginBottom:20,textAlign:"center"}}><div style={{fontSize:32,marginBottom:8}}>👥</div><p style={{margin:"0 0 12px",color:"#93c5fd"}}>Add your income sources to get started!</p><button onClick={()=>{setTab("income");setShowSrcForm(true);}} style={S.btn}>+ Add Income Source</button></div>)}
             {sources.length>0&&(
               <div>
@@ -612,9 +593,9 @@ function App() {
             )}
             {sortedBills.map(b=>{ const bp=paidThisMonth.has(b.id); return (
               <div key={b.id} style={{background:bp?"#0f2a1a":"#1e293b",borderRadius:10,padding:12,marginBottom:8,border:"1px solid "+(bp?"#22c55e44":"#334155"),display:"flex",justifyContent:"space-between",alignItems:"center",transition:"all .2s"}}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{width:20,height:20,borderRadius:5,border:"2px solid "+(bp?"#22c55e":"#475569"),background:bp?"#22c55e":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{bp&&<span style={{color:"#fff",fontSize:12,lineHeight:1}}>✓</span>}</div>
-                  <div><span style={{fontWeight:600,fontSize:14,color:bp?"#86efac":"#e2e8f0",textDecoration:bp?"line-through":"none"}}>{b.name}</span><div style={{marginTop:2}}><span style={{fontSize:11,color:b.recurring==="biweekly"?"#22c55e":"#818cf8",background:"#1e1b4b",padding:"1px 7px",borderRadius:10}}>{b.recurring==="biweekly"?"biweekly":"day "+b.due}</span></div></div>
+                <div>
+                  <span style={{fontWeight:600,fontSize:14,color:bp?"#86efac":"#e2e8f0",textDecoration:bp?"line-through":"none"}}>{b.name}</span>
+                  <div style={{marginTop:2}}><span style={{fontSize:11,color:b.recurring==="biweekly"?"#22c55e":"#818cf8",background:"#1e1b4b",padding:"1px 7px",borderRadius:10}}>{b.recurring==="biweekly"?"biweekly":"day "+b.due}</span></div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{color:bp?"#86efac":"#f59e0b",fontWeight:700}}>${b.amount.toFixed(2)}</span><button onClick={()=>startEditBill(b)} style={{background:"none",border:"none",cursor:"pointer",fontSize:15}}>✏️</button><button onClick={()=>deleteBill(b.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:15,color:"#ef4444"}}>🗑️</button></div>
               </div>
@@ -646,7 +627,7 @@ function App() {
                   {allB.map(b=>{
                     const paid_=isPaid(b.id,b.dueDate),ak=bamKey(b.id,b.dueDate,cd.date),dispAmt=getBillAmt(b,b.dueDate,cd.date),isEd=editAmtKey===ak;
                     return (
-                      <div key={b.id+b.dueDate} style={{background:paid_?"#0f2a1a":"#0f172a",borderRadius:8,padding:"10px 12px",marginBottom:6,border:"1px solid "+(paid_?"#22c55e33":"#1e293b"),display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div key={b.id+b.dueDate} style={{background:paid_?"#0f2a1a":"#0f172a",borderRadius:8,padding:"10px 12px",marginBottom:6,border:"1px solid "+(paid_?"#22c55e33":"#1e293b"),display:"flex",justifyContent:"space-between",alignItems:"center",transition:"all .15s"}}>
                         <div style={{display:"flex",alignItems:"center",gap:10,flex:1,cursor:"pointer"}} onClick={()=>{if(!isEd) togglePaid(b.id,b.dueDate);}}>
                           <div style={{width:20,height:20,borderRadius:5,border:"2px solid "+(paid_?"#22c55e":"#475569"),background:paid_?"#22c55e":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{paid_&&<span style={{color:"#fff",fontSize:12,lineHeight:1}}>✓</span>}</div>
                           <div><span style={{fontSize:13,fontWeight:600,color:paid_?"#86efac":"#e2e8f0",textDecoration:paid_?"line-through":"none"}}>{b.name}</span><div style={{fontSize:11,color:"#64748b"}}>due {fmtS(b.dueDate)}{billAmtOvr[ak]!==undefined?" · adjusted":""}</div></div>
@@ -663,8 +644,8 @@ function App() {
                           ):(
                             <div style={{display:"flex",alignItems:"center",gap:6}}>
                               <span style={{fontWeight:700,fontSize:13,color:paid_?"#86efac":billAmtOvr[ak]!==undefined?"#60a5fa":"#f59e0b"}}>${dispAmt.toFixed(2)}</span>
-                              <button title="Edit amount" onClick={e=>{e.stopPropagation();setEditAmtKey(ak);setEditAmtInput(dispAmt);}} style={{background:"none",border:"none",cursor:"pointer",color:"#475569",fontSize:13,padding:"2px 4px"}}>✏️</button>
-                              <button title="Remove" onClick={e=>{e.stopPropagation();savePaid({...paid,[skipKey(b.id,b.dueDate,cd.date)]:true});}} style={{background:"none",border:"none",cursor:"pointer",color:"#475569",fontSize:13,padding:"2px 4px"}}>✕</button>
+                              <button title="Edit amount" onClick={e=>{e.stopPropagation();setEditAmtKey(ak);setEditAmtInput(dispAmt);}} style={{background:"none",border:"none",cursor:"pointer",color:"#475569",fontSize:13,padding:"2px 4px",borderRadius:4}}>✏️</button>
+                              <button title="Remove from this paycheck" onClick={e=>{e.stopPropagation();savePaid({...paid,[skipKey(b.id,b.dueDate,cd.date)]:true});}} style={{background:"none",border:"none",cursor:"pointer",color:"#475569",fontSize:13,lineHeight:1,padding:"2px 4px",borderRadius:4}}>✕</button>
                             </div>
                           )}
                         </div>
@@ -689,8 +670,3 @@ function App() {
     </div>
   );
 }
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
-</script>
-</body>
-</html>
