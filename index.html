@@ -503,7 +503,7 @@ function App() {
                     <div key={src.id} style={{background:"#1e293b",borderRadius:10,padding:"10px 16px",border:"1px solid "+src.color+"44",flex:1,minWidth:140}}>
                       <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><div style={{width:10,height:10,borderRadius:"50%",background:src.color}}/><span style={{fontWeight:700,fontSize:13}}>{src.name}</span></div>
                       <div style={{fontSize:18,fontWeight:800,color:src.color}}>${parseFloat(src.amount).toFixed(2)}</div>
-                      <div style={{fontSize:11,color:"#64748b"}}>per paycheck · biweekly</div>
+                      <div style={{fontSize:11,color:"#64748b"}}>Per paycheck · Biweekly</div>
                     </div>
                   ))}
                 </div>
@@ -579,7 +579,7 @@ function App() {
                     <span style={{color:"#22c55e",fontWeight:700}}>${cd.totalIncome.toFixed(2)}</span>
                   </div>
                   <div style={{borderTop:"1px solid #334155",paddingTop:8}}>
-                    {allB.length===0?<p style={{color:"#475569",fontSize:13,margin:0}}>No bills assigned</p>:allB.map((b,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #1e293b",fontSize:13}}><span>{b.name} <span style={{fontSize:11,color:"#64748b"}}>due {fmtS(b.dueDate)}</span></span><span style={{color:"#f59e0b"}}>-${b.amount.toFixed(2)}</span></div>)}
+                    {allB.length===0?<p style={{color:"#475569",fontSize:13,margin:0}}>No bills assigned</p>:allB.map((b,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #1e293b",fontSize:13}}><span>{b.name} <span style={{fontSize:11,color:"#64748b"}}>Due {fmtS(b.dueDate)}</span></span><span style={{color:"#f59e0b"}}>-${b.amount.toFixed(2)}</span></div>)}
                     <div style={{display:"flex",justifyContent:"space-between",marginTop:8,fontWeight:700}}><span>Remaining</span><span style={{color:left>=0?"#22c55e":"#ef4444"}}>${left.toFixed(2)}</span></div>
                   </div>
                 </div>
@@ -672,7 +672,7 @@ function App() {
                       <div key={b.id+b.dueDate} style={{background:paid_?"#0f2a1a":"#0f172a",borderRadius:8,padding:"10px 12px",marginBottom:6,border:"1px solid "+(paid_?"#22c55e33":"#1e293b"),display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <div style={{display:"flex",alignItems:"center",gap:10,flex:1,cursor:"pointer"}} onClick={()=>{if(!isEd) togglePaid(b.id,b.dueDate);}}>
                           <div style={{width:20,height:20,borderRadius:5,border:"2px solid "+(paid_?"#22c55e":"#475569"),background:paid_?"#22c55e":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{paid_&&<span style={{color:"#fff",fontSize:12,lineHeight:1}}>✓</span>}</div>
-                          <div><span style={{fontSize:13,fontWeight:600,color:paid_?"#86efac":"#e2e8f0",textDecoration:paid_?"line-through":"none"}}>{b.name}</span><div style={{fontSize:11,color:"#64748b"}}>due {fmtS(b.dueDate)}{billAmtOvr[ak]!==undefined?" · adjusted":""}</div></div>
+                          <div><span style={{fontSize:13,fontWeight:600,color:paid_?"#86efac":"#e2e8f0",textDecoration:paid_?"line-through":"none"}}>{b.name}</span><div style={{fontSize:11,color:"#64748b"}}>Due {fmtS(b.dueDate)}{billAmtOvr[ak]!==undefined?" · Adjusted":""}</div></div>
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
                           {isEd?(
